@@ -1,6 +1,6 @@
 /*
-* Copyright (c) 2020, Barcelona Supercomputing Center
-*                     Centro Nacional de Supercomputacion
+* Copyright (c) 2020-2022, Barcelona Supercomputing Center
+*                          Centro Nacional de Supercomputacion
 *
 * This program is free software: you can redistribute it and/or modify  
 * it under the terms of the GNU General Public License as published by  
@@ -65,7 +65,7 @@ void omp_potrf(type_t *A)
 #ifdef OPENBLAS_IMPL
 #pragma omp target device(smp) copy_deps
 #else
-#pragma omp target device(fpga) /*trsm*/ num_instances(1) copy_deps
+#pragma omp target device(fpga) num_instances(TRSM_NUMACCS) copy_deps
 #endif
 #pragma omp task in([ts*ts]A) inout([ts*ts]B)
 void omp_trsm(const type_t *A, type_t *B)
@@ -105,7 +105,7 @@ void omp_trsm(const type_t *A, type_t *B)
 #ifdef OPENBLAS_IMPL
 #pragma omp target device(smp) copy_deps
 #else
-#pragma omp target device(fpga) /*syrk*/ num_instances(1) copy_deps
+#pragma omp target device(fpga) num_instances(SYRK_NUMACCS) copy_deps
 #endif
 #pragma omp task in([ts*ts]A) inout([ts*ts]B)
 void omp_syrk(const type_t *A, type_t *B)
@@ -133,7 +133,7 @@ void omp_syrk(const type_t *A, type_t *B)
 #ifdef OPENBLAS_IMPL
 #pragma omp target device(smp) copy_deps
 #else
-#pragma omp target device(fpga) /*gemm*/ num_instances(1) copy_deps
+#pragma omp target device(fpga) num_instances(GEMM_NUMACCS) copy_deps
 #endif
 #pragma omp task in([ts*ts]A, [ts*ts]B) inout([ts*ts]C)
 void omp_gemm(const type_t *A, const type_t *B, type_t *C)

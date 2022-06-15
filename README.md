@@ -17,7 +17,7 @@ The task implementation requires support for one external library that implement
 ### Build instructions
 Clone the repository:
 ```
-git clone https://github.com/bsc-pm-ompss-at-fpga/Cholesky.git
+git clone https://github.com/bsc-pm-ompss-at-fpga/cholesky.git
 cd cholesky
 ```
 
