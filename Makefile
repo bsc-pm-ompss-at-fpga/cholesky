@@ -1,20 +1,6 @@
 .PHONY: clean info
 all: help
 
-# Include the corresponding compiler makefile
---setup: FORCE
-  ifeq ($(COMPILER),llvm)
-    include llvm.mk
-  else
-    ifeq ($(COMPILER),mcxx)
-      include mcxx.mk
-    else
-      $(info No valid COMPILER variable defined, using mcxx)
-      include mcxx.mk
-    endif
-  endif
-FORCE:
-
 PROGRAM_ = cholesky
 
 common-help:
@@ -29,6 +15,20 @@ FPGA_CLOCK             ?= 200
 FPGA_HWRUNTIME         ?= pom
 FPGA_MEMORY_PORT_WIDTH ?= 128
 INTERCONNECT_OPT       ?= performance
+
+# Include the corresponding compiler makefile
+--setup: FORCE
+  ifeq ($(COMPILER),llvm)
+    include llvm.mk
+  else
+    ifeq ($(COMPILER),mcxx)
+      include mcxx.mk
+    else
+      $(info No valid COMPILER variable defined, using mcxx)
+      include mcxx.mk
+    endif
+  endif
+FORCE:
 
 # Cholesky parameters
 SYRK_NUM_ACCS ?= 1
@@ -151,3 +151,4 @@ info:
 	@echo "  Headers:          $(if $(wildcard $(MKL_INC_DIR)/mkl.h ),YES,NO)"
 	@echo "  Lib files (.so):  $(if $(wildcard $(MKL_LIB_DIR)/libmkl_sequential.so ),YES,NO)"
 	@echo "=============================="
+

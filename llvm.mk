@@ -3,8 +3,13 @@
 help: common-help
 	@echo 'Compiler env. variables:     CFLAGS, CROSS_COMPILE, LDFLAGS'
 
+CLANG_TARGET =
+ifdef CROSS_COMPILE
+    CLANG_TARGET += -target $(CROSS_COMPILE)
+endif
+
 COMPILER_         = clang
-COMPILER_FLAGS_   = $(CFLAGS) -fompss-2 -fompss-fpga-wrapper-code
+COMPILER_FLAGS_   = $(CFLAGS) $(CLANG_TARGET) -fompss-2 -fompss-fpga-wrapper-code
 COMPILER_FLAGS_D_ = -g -fompss-fpga-hls-tasks-dir $(PWD)
 LINKER_FLAGS_     = $(LDFLAGS)
 
