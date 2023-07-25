@@ -61,7 +61,7 @@
 #  error FPGA_GEMM_LOOP_II variable not defined
 #endif
 
-#define FPGA_HWRUNTIME "POM"
+#define FPGA_HWRUNTIME "pom"
 
 #if defined(USE_DOUBLE)
 #  define type_t     double
