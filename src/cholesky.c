@@ -32,6 +32,8 @@
 #include <errno.h>
 #include <assert.h>
 
+#include "nanos6.h"
+
 #include "cholesky.h"
 #include "cholesky.fpga.h"
 
@@ -413,6 +415,8 @@ int main(int argc, char* argv[])
    //Warm up execution
    if (check == 2) {
        cholesky_blocked(nt, Ab);
+       nanos6_set_noflush(Ab, nt*nt*ts*ts*sizeof(*Ab));
+       //#pragma oss taskwait noflush([nt*nt*ts*ts]Ab)
        #pragma oss taskwait
    }
 
@@ -422,6 +426,9 @@ int main(int argc, char* argv[])
    //Performance execution
    cholesky_blocked(nt, Ab);
 
+   //Noflush is not currently supported, use nanos api calls instead
+   //#pragma oss taskwait noflush([nt*nt*ts*ts]Ab)
+   nanos6_set_noflush(Ab, nt*nt*ts*ts*sizeof(*Ab));
    #pragma oss taskwait
    const double tEndExec = wall_time();
    const double tIniFlush = tEndExec;
