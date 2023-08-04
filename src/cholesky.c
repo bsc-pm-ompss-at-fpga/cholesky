@@ -487,7 +487,7 @@ int main(int argc, char* argv[])
          \"toolchain\": \"%s\", \
          \"hwruntime\": \"%s\", \
          \"board\": \"%s\", \
-         \"version\": \"%usyrk %ugemm %utrsm %uBS memport_128 noflush\", \
+         \"version\": \"%usyrk %ugemm %utrsm %uBS memport_%u noflush\", \
          \"exectype\": \"%s\", \
          \"argv\": \"%d %d %d\", \
          \"exectime\": \"%f\", \
@@ -498,7 +498,7 @@ int main(int argc, char* argv[])
       "ompss-2",
       FPGA_HWRUNTIME,
       BOARD,
-      SYRK_NUM_ACCS, GEMM_NUM_ACCS, TRSM_NUM_ACCS, BLOCK_SIZE,
+      SYRK_NUM_ACCS, GEMM_NUM_ACCS, TRSM_NUM_ACCS, BLOCK_SIZE, FPGA_MEMORY_PORT_WIDTH,
       RUNTIME_MODE,
       n, ts, check,
       tEndExec - tIniExec,
