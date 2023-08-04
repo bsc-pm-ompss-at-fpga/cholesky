@@ -8,7 +8,10 @@ if [ "$BOARD" == "alveo_u200" ]; then
 	    echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
 	    ##NOTE: Check == 2 -> enables the warm-up mode
 	    CHECK=$([ "$MATRIX_SIZE" == "5120" ] && echo 1 || echo 2)
-		NANOS6_CONFIG_OVERRIDE="devices.fpga.reverse_offload=true" timeout --preserve-status 150s ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
+		NANOS6_CONFIG_OVERRIDE="devices.fpga.reverse_offload=true" \
+            timeout --preserve-status 150s \
+            taskset --cpu-list "0-4" \
+            ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
 	    cat test_result.json >>$RES_FILE
 	    echo "," >>$RES_FILE
 	  done
@@ -19,7 +22,10 @@ elif [ "$BOARD" == "zcu102" ]; then
 	    echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
 	    ##NOTE: Check == 2 -> enables the warm-up mode
 	    CHECK=$([ "$MATRIX_SIZE" == "2048" ] && echo 1 || echo 2)
-		NANOS6_CONFIG_OVERRIDE="devices.fpga.reverse_offload=true" timeout --preserve-status 150s ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
+		NANOS6_CONFIG_OVERRIDE="devices.fpga.reverse_offload=true" \
+            timeout --preserve-status 150s \
+            taskset --cpu-list "0-4" \
+            ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
 	    cat test_result.json >>$RES_FILE
 	    echo "," >>$RES_FILE
 	  done
