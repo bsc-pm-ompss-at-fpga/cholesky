@@ -15,7 +15,7 @@ fi
 
 PROG_NAME=cholesky
 OUT_DIR=$(pwd -P)/build
-RES_FILE=$(pwd -P)/resources_results.json
+RES_FILE=$(pwd -P)/resources.json
 
 if ! module load openblas ; then
   echo "CI_NODE ('$CI_NODE') not supported. Cannot load OpenBLAS."
@@ -73,5 +73,5 @@ else
     printf "\", \"${PARAM}\": \"" >>$RES_FILE
     grep "${PARAM}" ${PROG_NAME}_ait/${PROG_NAME}.timing-impl.txt | awk '{printf $2}' >>$RES_FILE
   done
-  printf "\"},\n" >>$RES_FILE
+  printf "\"}\n" >>$RES_FILE
 fi
