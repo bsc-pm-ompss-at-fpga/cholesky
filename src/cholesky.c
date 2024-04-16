@@ -499,7 +499,7 @@ int main(int argc, char* argv[])
       FPGA_HWRUNTIME,
       BOARD,
       SYRK_NUM_ACCS, GEMM_NUM_ACCS, TRSM_NUM_ACCS, BLOCK_SIZE, FPGA_MEMORY_PORT_WIDTH,
-      RUNTIME_MODE,
+      getenv("RUNTIME_MODE"),
       n, ts, check,
       tEndExec - tIniExec,
       gflops,

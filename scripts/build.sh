@@ -57,7 +57,7 @@ else
     printf "\", \"${PARAM}_HLS\": \"" >>$RES_FILE
     grep "$PARAM" ${PROG_NAME}_ait/${PROG_NAME}.resources-hls.txt | awk '{printf $2}' >>$RES_FILE
   done
-  if $(grep -q URAM ${PROG_NAME}_ait/${PROG_NAME}.resources-hls.txt); then
+  if grep -q URAM ${PROG_NAME}_ait/${PROG_NAME}.resources-hls.txt; then
     printf "\", \"URAM_HLS\": \"" >>$RES_FILE
     grep "URAM" ${PROG_NAME}_ait/${PROG_NAME}.resources-hls.txt | awk '{printf $2}' >>$RES_FILE
   fi
@@ -65,7 +65,7 @@ else
     printf "\", \"${PARAM}_IMPL\": \"" >>$RES_FILE
     grep "${PARAM}" ${PROG_NAME}_ait/${PROG_NAME}.resources-impl.txt | awk '{printf $2}' >>$RES_FILE
   done
-  if $(grep -q URAM ${PROG_NAME}_ait/${PROG_NAME}.resources-impl.txt); then
+  if grep -q URAM ${PROG_NAME}_ait/${PROG_NAME}.resources-impl.txt; then
     printf "\", \"URAM_IMPL\": \"" >>$RES_FILE
     grep "URAM" ${PROG_NAME}_ait/${PROG_NAME}.resources-impl.txt | awk '{printf $2}' >>$RES_FILE
   fi

@@ -10,6 +10,7 @@ endif
 
 COMPILER_         = clang
 COMPILER_FLAGS_   = $(CFLAGS) $(CLANG_TARGET) -fompss-2 -fompss-fpga-wrapper-code
+COMPILER_FLAGS_I_ = -fompss-fpga-instrumentation
 COMPILER_FLAGS_D_ = -g -fompss-fpga-hls-tasks-dir $(PWD)
 LINKER_FLAGS_     = $(LDFLAGS)
 

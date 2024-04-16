@@ -77,10 +77,6 @@ ifeq ($(POTRF_SMP),1)
 	COMPILER_FLAGS_ += -DPOTRF_SMP
 endif
 
-COMPILER_FLAGS_   += -DRUNTIME_MODE=\"perf\"
-COMPILER_FLAGS_D_ += -DRUNTIME_MODE=\"debug\"
-COMPILER_FLAGS_I_ += -DRUNTIME_MODE=\"instr\"
-
 PROGRAM_SRC = \
     src/cholesky.c
 
