@@ -10,13 +10,15 @@ declare -A RUNTIME_MODE_EXEC_MODE
 RUNTIME_MODE_EXEC_MODE['d']="debug"
 RUNTIME_MODE_EXEC_MODE['p']="perf"
 
+# Do not override NANOS6_CONFIG_OVERRIDE, as it might contain node-specific default values
+
 if [ "$BOARD" == "alveo_u200" ]; then
   for EXEC_MODE in d p; do
     for MATRIX_SIZE in 5120 10240; do
       echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
       ##NOTE: Check == 2 -> enables the warm-up mode
       CHECK=$([ "$MATRIX_SIZE" == "5120" ] && echo 1 || echo 2)
-      NANOS6_CONFIG_OVERRIDE=${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]} \
+      NANOS6_CONFIG_OVERRIDE="$NANOS6_CONFIG_OVERRIDE,${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]}" \
       RUNTIME_MODE=${RUNTIME_MODE_EXEC_MODE[$EXEC_MODE]} \
         taskset --cpu-list "0-4" \
         ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
@@ -30,7 +32,7 @@ elif [ "$BOARD" == "zcu102" ]; then
       echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
       ##NOTE: Check == 2 -> enables the warm-up mode
       CHECK=$([ "$MATRIX_SIZE" == "2048" ] && echo 1 || echo 2)
-      NANOS6_CONFIG_OVERRIDE=${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]} \
+      NANOS6_CONFIG_OVERRIDE="$NANOS6_CONFIG_OVERRIDE,${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]}" \
       RUNTIME_MODE=${RUNTIME_MODE_EXEC_MODE[$EXEC_MODE]} \
         taskset --cpu-list "0-4" \
         ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
