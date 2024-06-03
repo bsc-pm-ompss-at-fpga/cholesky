@@ -2,6 +2,8 @@
 
 RES_FILE=$(pwd -P)/test_results.json
 
+MATRIX_SIZES=(${MATRIX_SIZES-1024 2048})
+
 declare -A NANOS6_CONFIG_EXEC_MODE
 NANOS6_CONFIG_EXEC_MODE['d']="devices.fpga.reverse_offload=true, version.debug=true"
 NANOS6_CONFIG_EXEC_MODE['p']="devices.fpga.reverse_offload=true"
@@ -12,32 +14,18 @@ RUNTIME_MODE_EXEC_MODE['p']="perf"
 
 # Do not override NANOS6_CONFIG_OVERRIDE, as it might contain node-specific default values
 
-if [ "$BOARD" == "alveo_u200" ]; then
-  for EXEC_MODE in d p; do
-    for MATRIX_SIZE in 5120 10240; do
-      echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
-      ##NOTE: Check == 2 -> enables the warm-up mode
-      CHECK=$([ "$MATRIX_SIZE" == "5120" ] && echo 1 || echo 2)
-      NANOS6_CONFIG_OVERRIDE="$NANOS6_CONFIG_OVERRIDE,${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]}" \
-      RUNTIME_MODE=${RUNTIME_MODE_EXEC_MODE[$EXEC_MODE]} \
-        taskset --cpu-list "0-4" \
-        ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
-      cat test_result.json >>$RES_FILE
-      echo "," >>$RES_FILE
-    done
+for EXEC_MODE in d p; do
+  for IDX in ${!MATRIX_SIZES[@]}; do
+    MATRIX_SIZE=${MATRIX_SIZES[$IDX]}
+    echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
+    #NOTE: Check == 1 -> Enable output result check
+    #      Check == 2 -> Run an additional warm-up execution before the performance one
+    CHECK=$([ "$IDX" == "0" ] && echo 1 || echo 0)
+    NANOS6_CONFIG_OVERRIDE="$NANOS6_CONFIG_OVERRIDE,${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]}" \
+    RUNTIME_MODE=${RUNTIME_MODE_EXEC_MODE[$EXEC_MODE]} \
+      taskset --cpu-list "0-4" \
+      ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
+    cat test_result.json >>$RES_FILE
+    echo "," >>$RES_FILE
   done
-elif [ "$BOARD" == "zcu102" ]; then
-  for EXEC_MODE in d p; do
-    for MATRIX_SIZE in 2048 4096; do
-      echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
-      ##NOTE: Check == 2 -> enables the warm-up mode
-      CHECK=$([ "$MATRIX_SIZE" == "2048" ] && echo 1 || echo 2)
-      NANOS6_CONFIG_OVERRIDE="$NANOS6_CONFIG_OVERRIDE,${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]}" \
-      RUNTIME_MODE=${RUNTIME_MODE_EXEC_MODE[$EXEC_MODE]} \
-        taskset --cpu-list "0-4" \
-        ./build/cholesky-${EXEC_MODE} ${MATRIX_SIZE} ${CHECK}
-      cat test_result.json >>$RES_FILE
-      echo "," >>$RES_FILE
-    done
-  done
-fi
+done
