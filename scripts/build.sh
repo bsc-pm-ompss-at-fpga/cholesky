@@ -42,6 +42,9 @@ else
   if [ -e ${PROG_NAME}_ait/${PROG_NAME}.bin ] ; then
     mv ${PROG_NAME}_ait/${PROG_NAME}.bin $OUT_DIR/bitstream.bin
   fi
+  if [ -e ${PROG_NAME}_ait/${PROG_NAME}.bit.bin ] ; then
+    mv ${PROG_NAME}_ait/${PROG_NAME}.bit.bin $OUT_DIR/bitstream.bit.bin
+  fi
   mv ${PROG_NAME}_ait/${PROG_NAME}.bit $OUT_DIR/bitstream.bit
   mv ${PROG_NAME}_ait/${PROG_NAME}.xtasks.config $OUT_DIR/xtasks.config
 
