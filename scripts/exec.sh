@@ -20,7 +20,7 @@ for EXEC_MODE in d p; do
     echo "=== Check mode: ${EXEC_MODE}, msize: ${MATRIX_SIZE} ==="
     #NOTE: Check == 1 -> Enable output result check
     #      Check == 2 -> Run an additional warm-up execution before the performance one
-    CHECK=$([ "$IDX" == "0" ] && echo 1 || echo 0)
+    CHECK=$([ "$IDX" == "0" ] && echo 1 || echo 2)
     NANOS6_CONFIG_OVERRIDE="$NANOS6_CONFIG_OVERRIDE,${NANOS6_CONFIG_EXEC_MODE[$EXEC_MODE]}" \
     RUNTIME_MODE=${RUNTIME_MODE_EXEC_MODE[$EXEC_MODE]} \
       taskset --cpu-list "0-4" \
