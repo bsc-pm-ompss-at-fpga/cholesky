@@ -52,6 +52,9 @@ endif
 ifdef DISABLE_UTILIZATION_CHECK
 	AIT_FLAGS__ += --disable_utilization_check
 endif
+ifdef DISABLE_CREATOR_PORTS
+	AIT_FLAGS__ += --disable_creator_ports
+endif
 
 AIT_FLAGS_        = -fompss-fpga-ait-flags "$(AIT_FLAGS__)"
 AIT_FLAGS_DESIGN_ = -fompss-fpga-ait-flags "$(AIT_FLAGS_DESIGN__)"
