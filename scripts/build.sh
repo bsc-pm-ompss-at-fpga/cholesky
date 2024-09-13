@@ -52,7 +52,7 @@ else
   printf "\"toolchain\": \"ompss-2\", " >>$RES_FILE
   printf "\"hwruntime\": \"${FPGA_HWRUNTIME}\", " >>$RES_FILE
   printf "\"board\": \"${BOARD}\", " >>$RES_FILE
-  printf "\"builder\": \"${CI_NODE}\", " >>$RES_FILE
+  printf "\"builder\": \"${HOSTNAME}\", " >>$RES_FILE
   printf "\"version\": \"${SYRK_NUM_ACCS}syrk ${GEMM_NUM_ACCS}gemm ${TRSM_NUM_ACCS}trsm ${BLOCK_SIZE}BS memport_${FPGA_MEMORY_PORT_WIDTH} noflush\", " >>$RES_FILE
   printf "\"accels_freq\": \"${FPGA_CLOCK}\", " >>$RES_FILE
   printf "\"memory_port_width\": \"${FPGA_MEMORY_PORT_WIDTH}" >>$RES_FILE
