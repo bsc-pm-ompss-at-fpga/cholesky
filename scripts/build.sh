@@ -5,9 +5,6 @@ BUILD_TARGET=$1
 if [ "$BOARD" == "" ]; then
   echo "BOARD environment variable not defined"
   exit 1
-elif [ "$FPGA_HWRUNTIME" == "" ]; then
-  echo "FPGA_HWRUNTIME environment variable not defined"
-  exit 1
 elif [ "$FPGA_CLOCK" == "" ]; then
   echo "FPGA_CLOCK environment variable not defined. Using default: 100"
   export FPGA_CLOCK=${FPGA_CLOCK:-100}
@@ -50,7 +47,7 @@ else
 
   printf "{\"benchmark\": \"${PROG_NAME}\", " >>$RES_FILE
   printf "\"toolchain\": \"ompss-2\", " >>$RES_FILE
-  printf "\"hwruntime\": \"${FPGA_HWRUNTIME}\", " >>$RES_FILE
+  printf "\"hwruntime\": \"pom\", " >>$RES_FILE
   printf "\"board\": \"${BOARD}\", " >>$RES_FILE
   printf "\"builder\": \"${HOSTNAME}\", " >>$RES_FILE
   printf "\"version\": \"${SYRK_NUM_ACCS}syrk ${GEMM_NUM_ACCS}gemm ${TRSM_NUM_ACCS}trsm ${BLOCK_SIZE}BS memport_${FPGA_MEMORY_PORT_WIDTH} noflush\", " >>$RES_FILE

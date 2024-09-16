@@ -43,7 +43,6 @@ The supported ones are:
     - `OPENBLAS_INC_DIR`. Installation directory of includes for OpenBLAS library. The default value is: `$OPENBLAS_DIR/include`.
     - `OPENBLAS_LIB_DIR`. Installation directory of OS libraries for OpenBLAS library. The default value is: `$OPENBLAS_DIR/lib`.
   - `BOARD`. Board option used when generating the bitstreams.
-  - `FPGA_HWRUNTIME`. Hardware Runtime used when generating the bitstreams. The default value is: `POM`.
   - `FPGA_CLOCK`. Target frequency of FPGA accelerators in the bitstreams. The default value is: `200`.
   - `FPGA_MEMORY_PORT_WIDTH`. Bit-width of accelerators memory port to access main memory. The default value is: `128`.
   - `BLOCK_SIZE`. Dimension of matrix blocks that FPGA accelerators deal with. The default value is: `32`.

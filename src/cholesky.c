@@ -496,7 +496,7 @@ int main(int argc, char* argv[])
       }",
       "cholesky",
       "ompss-2",
-      FPGA_HWRUNTIME,
+      "pom",
       BOARD,
       SYRK_NUM_ACCS, GEMM_NUM_ACCS, TRSM_NUM_ACCS, BLOCK_SIZE, FPGA_MEMORY_PORT_WIDTH,
       getenv("RUNTIME_MODE"),
