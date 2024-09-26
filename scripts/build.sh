@@ -14,11 +14,6 @@ PROG_NAME=cholesky
 OUT_DIR=$(pwd -P)/build
 RES_FILE=$(pwd -P)/resources.json
 
-if ! module load $ARCH/openblas ; then
-  echo "CI_NODE ('$CI_NODE') not supported. Cannot load OpenBLAS."
-  exit 1
-fi
-
 # Cleanup
 make clean
 mkdir -p $OUT_DIR
