@@ -29,12 +29,9 @@ make BOARD=zedboard CROSS_COMPILE=arm-linux-gnueabihf-
 You can change the build process defining or modifying some environment variables.
 The supported ones are:
   - `CFLAGS`
-    - `-DUSE_DMA_MEM`. Defining the `USE_DMA_MEM` variable the blocked matrix is allocated in kernel memory instead of user-space memory.
     - `-DUSE_DOUBLE`. Defining the `USE_DOUBLE` variable the matix elements are of type `double` instead of `float`.
     - `-DVERBOSE`. Defining the `VERBOSE` variable the application steps are shown meanwhile executed.
   - `LDFLAGS`
-  - `GCC`. If not defined, the default value is: `gcc`.
-  - `MCC`. If not defined, the default value is: `mcc`. However, for SMP machines we recommend the use of `smpcc`.
   - `CROSS_COMPILE`
   - `MKL_DIR`. Installation directory of MKL library. The default value is: `$MKLROOT`.
     - `MKL_INC_DIR`. Installation directory of includes for MKL library. The default value is: `$MKL_DIR/include`.
@@ -57,7 +54,6 @@ Note that in order to compile the application either `MKL_DIR` or `OPENBLAS_DIR`
 
 For example, the build step to cross-compile the application for ARM using the `smpcc` profile and OpenBLAS library may be:
 ```
-export MCC=smpcc
 export CROSS_COMPILE=arm-linux-gnueabihf-
 export OPENBLAS_DIR=/opt/install-arm/openblas
 make
