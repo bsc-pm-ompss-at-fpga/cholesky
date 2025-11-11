@@ -1,0 +1,7 @@
+{
+    "cholesky_blocked": [1],
+    "omp_potrf": [1],
+    "omp_trsm": [1],
+    "omp_gemm": [0,0,0,1,1,2,2,2],
+    "omp_syrk": [1]
+}
