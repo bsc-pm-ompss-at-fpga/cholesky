@@ -362,6 +362,10 @@ int main(int argc, char* argv[])
 
    if ( argc < 3 ) {
       fprintf( stderr, "USAGE:\t%s <matrix size> [<check>]\n", argv[0] );
+      fprintf( stderr, "Check valid values:\n" );
+      fprintf( stderr, "\t0: Do not validate results\n" );
+      fprintf( stderr, "\t1: Validate results\n" );
+      fprintf( stderr, "\t2: Run an additional warm-up execution and validate results\n" );
       return 1;
    }
    const int  n = atoi(argv[1]); // matrix size
@@ -474,44 +478,6 @@ int main(int argc, char* argv[])
 
    // Free blocked matrix
    free(Ab);
-
-   //Create the JSON result file
-   FILE *res_file = fopen("test_result.json", "w+");
-   if (res_file == NULL) {
-      printf( "Cannot open 'test_result.json' file\n" );
-      exit(1);
-   }
-   fprintf(res_file,
-      "{ \
-         \"benchmark\": \"%s\", \
-         \"toolchain\": \"%s\", \
-         \"hwruntime\": \"%s\", \
-         \"board\": \"%s\", \
-         \"version\": \"%usyrk %ugemm %utrsm %uBS memport_%u noflush\", \
-         \"exectype\": \"%s\", \
-         \"argv\": \"%d %d %d\", \
-         \"exectime\": \"%f\", \
-         \"performance\": \"%f\", \
-         \"note\": \"datatype %s, init %f, warm %f, exec %f, flush %f, to_linear %f, check %f\" \
-      }",
-      "cholesky",
-      "ompss-2",
-      "pom",
-      BOARD,
-      SYRK_NUM_ACCS, GEMM_NUM_ACCS, TRSM_NUM_ACCS, BLOCK_SIZE, FPGA_MEMORY_PORT_WIDTH,
-      getenv("RUNTIME_MODE"),
-      n, ts, check,
-      tEndExec - tIniExec,
-      gflops,
-      ELEM_T_STR,
-      tEndStart - tIniStart,
-      tEndWarm - tIniWarm,
-      tEndExec - tIniExec,
-      tEndFlush - tIniFlush,
-      tEndToLinear - tIniToLinear,
-      tEndCheck - tIniCheck
-   );
-   fclose(res_file);
 
    // Free matrix
    free(matrix);

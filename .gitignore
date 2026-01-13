@@ -1,9 +1,7 @@
 *.o
-*_cholesky.c
-cholesky
 cholesky-*
-*_hls_automatic_mcxx.cpp
-*.config
+*_hls_automatic_clang.pp
 *.swp
 *_ait
 *.log
+ait_extracted.json

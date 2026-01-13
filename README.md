@@ -1,10 +1,9 @@
-# Cholesky
+# Cholesky (FPGA version)
 
-**Name**: Cholesky Factorization Kernel  
-**Contact Person**: OmpSs@FPGA Team, ompss-fpga-support@bsc.es  
-**License Agreement**: GPL  
+**Name**: Cholesky Factorization Kernel
+**Contact Person**: OmpSs@FPGA Team, ompss-fpga-support@bsc.es
+**License Agreement**: GPL
 **Platform**: OmpSs@FPGA
-
 
 ### Description
 This application performs a cholesky decomposition/factorization over a square matrix.
@@ -16,15 +15,19 @@ The task implementation requires support for one external library that implement
 
 ### Build instructions
 Clone the repository:
-```
-git clone https://pm.bsc.es/gitlab/ompss-at-fpga/benchmarks/cholesky.git
+
+```none
+git clone https://github.com/bsc-pm-ompss-at-fpga/cholesky.git
 cd cholesky
 ```
 
 Build the application binaries:
-```
+
+```none
 make BOARD=zedboard CROSS_COMPILE=arm-linux-gnueabihf-
+make BOARD=zcu102 CROSS_COMPILE=aarch64-linux-gnu-
 ```
+
 ##### Build variables
 You can change the build process defining or modifying some environment variables.
 The supported ones are:
@@ -52,24 +55,26 @@ The supported ones are:
 
 Note that in order to compile the application either `MKL_DIR` or `OPENBLAS_DIR` (or the derivate variables) must point to a valid installation.
 
-For example, the build step to cross-compile the application for ARM using the `smpcc` profile and OpenBLAS library may be:
-```
-export CROSS_COMPILE=arm-linux-gnueabihf-
-export OPENBLAS_DIR=/opt/install-arm/openblas
+For example, the build step to cross-compile the application for ARM and OpenBLAS library may be:
+
+```none
+export CROSS_COMPILE=aarch64-linux-gnu-
+export OPENBLAS_DIR=/opt/arm64/openblas
 make
 ```
 
-
 ### Run instructions
 The name of each binary file created by build step ends with a suffix which determines the version:
- - program-p: performance version
- - program-i: instrumented version
- - program-d: debug version
+ - cholesky-p: performance version
+ - cholesky-i: instrumented version
+ - cholesky-d: debug version
 
 All versions use the same arguments structure:
+
+```none
+./cholesky-p <matrix_size> [<check>]
 ```
-./cholesky <matrix size> [<check>]
-```
+
 where:
- - `matrix size` is the dimension of the matrices. (Mandatory)
+ - `matrix_size` is the dimension of the matrices. (Mandatory)
  - `check` defines if the result must be checked. Default is: TRUE. (Optional)
