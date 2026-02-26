@@ -16,14 +16,13 @@ SYRK_NUM_ACCS          ?= 1
 GEMM_NUM_ACCS          ?= 1
 TRSM_NUM_ACCS          ?= 1
 BLOCK_SIZE             ?= 32
-POTRF_SMP              ?= 1
 FPGA_GEMM_II           ?= 1
 FPGA_OTHER_II          ?= 1
 
 help:
 	@echo 'Supported targets:           $(PROGRAM_)-p, $(PROGRAM_)-i, $(PROGRAM_)-d, $(PROGRAM_)-seq, design-p, design-i, design-d, bitstream-p, bitstream-i, bitstream-d, clean, help'
 	@echo 'FPGA env. variables:         BOARD, FPGA_CLOCK, FPGA_MEMORY_PORT_WIDTH, MEMORY_INTERLEAVING_STRIDE, SIMPLIFY_INTERCONNECTION, INTERCONNECT_OPT, INTERCONNECT_REGSLICE, FLOORPLANNING_CONSTR, SLR_SLICES, PLACEMENT_FILE'
-	@echo 'Benchmark env. variables:    SYRK_NUM_ACCS, GEMM_NUM_ACCS, TRSM_NUM_ACCS, BLOCK_SIZE, POTRF_SMP, FPGA_GEMM_II, FPGA_OTHER_II'
+	@echo 'Benchmark env. variables:    SYRK_NUM_ACCS, GEMM_NUM_ACCS, TRSM_NUM_ACCS, BLOCK_SIZE, FPGA_GEMM_II, FPGA_OTHER_II'
 	@echo 'MKL env. variables:          MKLROOT, MKL_DIR, MKL_INC_DIR, MKL_LIB_DIR'
 	@echo 'OpenBLAS env. variables:     OPENBLAS_HOME, OPENBLAS_DIR, OPENBLAS_INC_DIR, OPENBLAS_LIB_DIR, OPENBLAS_IMPL'
 	@echo 'Compiler env. variables:     CFLAGS, CROSS_COMPILE, LDFLAGS'
@@ -34,9 +33,9 @@ ifdef CROSS_COMPILE
 endif
 
 COMPILER_         = clang
-COMPILER_FLAGS_   = $(CFLAGS) $(CLANG_TARGET) -fompss-2 -fompss-fpga-wrapper-code
+COMPILER_FLAGS_   = $(CFLAGS) $(CLANG_TARGET) -fompss-2 -fompss-imp -fompss-fpga-wrapper-code
 COMPILER_FLAGS_I_ = -fompss-fpga-instrumentation
-COMPILER_FLAGS_D_ = -g -fompss-fpga-hls-tasks-dir $(PWD)
+COMPILER_FLAGS_D_ = -g -gdwarf-3 -fompss-fpga-hls-tasks-dir $(PWD)
 LINKER_FLAGS_     = $(LDFLAGS)
 
 AIT_FLAGS__        = --name=$(PROGRAM_) --board=$(BOARD) -c=$(FPGA_CLOCK)
@@ -68,7 +67,7 @@ endif
 
 ## Cholesky specifics
 # Picos configuration
-AIT_FLAGS__ += --max_deps_per_task=3 --max_args_per_task=3 --max_copies_per_task=3 --picos_tm_size=256 --picos_dm_size=645 --picos_vm_size=775
+AIT_FLAGS__ += --max_deps_per_task=3 --max_args_per_task=6 --max_copies_per_task=3 --picos_tm_size=256 --picos_dm_size=645 --picos_vm_size=775 --enable_pom_axilite
 
 # Preprocessor flags
 COMPILER_FLAGS_ += -DBOARD=\"$(BOARD)\" -DFPGA_MEMORY_PORT_WIDTH=$(FPGA_MEMORY_PORT_WIDTH) -DFPGA_CLOCK=$(FPGA_CLOCK)
@@ -76,10 +75,6 @@ COMPILER_FLAGS_ += -DFPGA_OTHER_LOOP_II=$(FPGA_OTHER_II) -DFPGA_GEMM_LOOP_II=$(F
 
 ifdef USE_URAM
 	COMPILER_FLAGS_ += -DUSE_URAM
-endif
-
-ifeq ($(POTRF_SMP),1)
-	COMPILER_FLAGS_ += -DPOTRF_SMP
 endif
 
 # Linker flags

@@ -32,7 +32,10 @@
 #include <errno.h>
 #include <assert.h>
 
-#include "nanos6.h"
+//#include "nanos6.h"
+#include "nanos6/distributed.h"
+//Needed for nanos6_get_num_cpus
+#include "nanos6/debug.h"
 
 #include "cholesky.h"
 #include "cholesky.fpga.h"
@@ -54,7 +57,7 @@ static void gather_block(const int N, type_t *Alin, type_t *A)
    }
 }
 
-static void scatter_block(const int N, type_t *A, type_t *Alin)
+static void scatter_block(const int N, const type_t *A, type_t *Alin)
 {
    for (int i = 0; i < ts; i++) {
       for (int j = 0; j < ts; j++) {
@@ -62,6 +65,16 @@ static void scatter_block(const int N, type_t *A, type_t *Alin)
       }
    }
 }
+
+static void scatter_transposed_block(const int N, const type_t *A, type_t *Alin)
+{
+   for (int i = 0; i < ts; i++) {
+      for (int j = 0; j < ts; j++) {
+         Alin[i*N + j] = A[j*ts + i];
+      }
+   }
+}
+
 
 static void convert_to_blocks(const int DIM, const int N, type_t (*Alin)[N], type_t *A[DIM][DIM])
 {
@@ -81,23 +94,64 @@ static void convert_to_linear(const int DIM, const int N, type_t *A[DIM][DIM], t
    }
 }
 
+static inline int get_block_idx(uint i, uint j, uint nt, unsigned char r, unsigned char s, const char cfidx, const uint ndiags, const unsigned char remstart)
+{
+#pragma HLS inline
+    uint cf;
+    uint globaln = i+j;
+    uint n = globaln/s;
+    if (cfidx == 0)
+        cf = 0;
+    else if (cfidx == 1)
+        cf = (n+1)/2;
+    else if (cfidx == 2)
+        cf = (n+1)/4;
+    else
+        cf = (n+2)/4;
+    uint rem = n - ndiags;
+    uint remblocks = (rem+1)*remstart + s*((rem*(rem+1))/2) + (rem+1);
+    uint nblocks = (s*n*(n+1) + 2*(n+1)*r)/4 + (n+1) - cf - (globaln >= nt ? remblocks : 0);
+    uint block_idx = nblocks - ((r + n*s)/2 + 1) + (globaln >= nt ? remstart + rem*s + 1 : 0) + (globaln >= nt ? nt-1-i : j);
+    return block_idx;
+}
+
+unsigned char calc_owner(int i, int j, unsigned char size) {
+#pragma HLS inline
+   return (i + j)%size;
+}
+
+static inline size_t get_total_blocks(int nt, int r, int s)
+{
+   int cf;
+   int n = (2*nt-1)/s + (r < (2*nt-1)%s ? 1 : 0) - 1;
+   int globaln = r + n*s;
+   if (s%2 == 0 && r%2 == 0) {
+      cf = 0;
+   }
+   else if (s%2 == 0 && r%2 == 1) {
+      cf = (n+1)/2;
+   }
+   else if (s%2 == 1 && r%2 == 0) {
+      cf = (n+1)/4;
+   } else { //s%2 == 1 && r%2 == 1
+      cf = (n+2)/4;
+   }
+   int rem = n - (nt/s + (r < nt%s ? 1 : 0));
+   int remstart = r >= nt%s ? r-nt%s : r+s - nt%s;
+   int remblocks = (rem+1)*remstart + s*((rem*(rem+1))/2) + (rem+1);
+   int nblocks = (s*n*(n+1) + 2*(n+1)*r)/4 + (n+1) - cf - (globaln >= nt ? remblocks : 0);
+   return nblocks;
+}
+
+
 #pragma oss task in([len]data)
 void flushData(const type_t *data, int len) {
     //dummy task to pull data from fpga
 }
 
-#ifdef POTRF_SMP
-#pragma oss task inout([ts*ts]A)
-#else
-#pragma oss task device(fpga) inout([ts*ts]A) copy_deps
-#endif
-void omp_potrf(type_t *A)
+#pragma oss task device(fpga) inout([ts*ts]A) copy_deps owner(taskOwner)
+void omp_potrf(type_t *A, int taskOwner)
 {
-#if defined(OPENBLAS_IMPL) || defined(POTRF_SMP)
-   static const char L = 'L';
-   int info;
-   potrf(&L, &ts, A, &ts, &info);
-#else
    #pragma HLS inline
    #pragma HLS array_partition variable=A cyclic factor=FPGA_PWIDTH/64
    for (int j = 0; j < ts; ++j) {
@@ -119,15 +173,10 @@ void omp_potrf(type_t *A)
          A[j*ts + i] = tmp/A[j*ts + j];
       }
    }
-#endif
 }
 
-#ifdef TRSM_SMP
-#pragma oss task in([ts*ts]A) inout([ts*ts]B)
-#else
-#pragma oss task device(fpga) num_instances(TRSM_NUMACCS) copy_deps in([ts*ts]A) inout([ts*ts]B)
-#endif
-void omp_trsm(const type_t *A, type_t *B)
+#pragma oss task device(fpga) num_instances(TRSM_NUMACCS) copy_deps in([ts*ts]A;ADowner) inout([ts*ts]B) owner(taskOwner)
+void omp_trsm(const type_t *A, type_t *B, int ADowner, int taskOwner)
 {
 #ifdef TRSM_SMP
    trsm(CBLAS_MAT_ORDER, CBLAS_RI, CBLAS_LO, CBLAS_T, CBLAS_NU,
@@ -161,12 +210,8 @@ void omp_trsm(const type_t *A, type_t *B)
 #endif
 }
 
-#ifdef OPENBLAS_IMPL
-#pragma oss task in([ts*ts]A) inout([ts*ts]B)
-#else
-#pragma oss task device(fpga) num_instances(SYRK_NUMACCS) copy_deps in([ts*ts]A) inout([ts*ts]B)
-#endif
-void omp_syrk(const type_t *A, type_t *B)
+#pragma oss task device(fpga) num_instances(SYRK_NUMACCS) copy_deps in([ts*ts]A;Aowner) inout([ts*ts]B) owner(taskOwner)
+void omp_syrk(const type_t *A, type_t *B, int Aowner, int taskOwner)
 {
 #ifdef OPENBLAS_IMPL
    syrk(CBLAS_MAT_ORDER, CBLAS_LO, CBLAS_NT,
@@ -188,12 +233,8 @@ void omp_syrk(const type_t *A, type_t *B)
 #endif
 }
 
-#ifdef OPENBLAS_IMPL
-#pragma oss task in([ts*ts]A, [ts*ts]B) inout([ts*ts]C)
-#else
-#pragma oss task device(fpga) num_instances(GEMM_NUMACCS) copy_deps in([ts*ts]A, [ts*ts]B) inout([ts*ts]C)
-#endif
-void omp_gemm(const type_t A[ts*ts], const type_t B[ts*ts], type_t C[ts*ts])
+#pragma oss task device(fpga) num_instances(GEMM_NUMACCS) copy_deps in([ts*ts]A;Aowner) in([ts*ts]B;Bowner) inout([ts*ts]C) owner(taskOwner)
+void omp_gemm(const type_t A[ts*ts], const type_t B[ts*ts], type_t C[ts*ts], int Aowner, int Bowner, int taskOwner)
 {
 #ifdef OPENBLAS_IMPL
    gemm(CBLAS_MAT_ORDER, CBLAS_NT, CBLAS_T,
@@ -224,36 +265,221 @@ void omp_gemm(const type_t A[ts*ts], const type_t B[ts*ts], type_t C[ts*ts])
 #endif
 }
 
-#ifdef OPENBLAS_IMPL
-#pragma oss task inout([nt*nt*ts*ts]A)
-#else
-#pragma oss task device(fpga) inout([nt*nt*ts*ts]A)
-#endif
-void cholesky_blocked(const int nt, type_t* A)
+unsigned const int recv_buffer_size = 2;
+
+//#ifdef GENERATE_BITSTREAM
+//#pragma oss task device(fpga) inout([(nt*(nt+1)/2)*ts*ts]A) in([2*nt*ts*ts]recv_buffer)
+//#else
+//#pragma oss task device(broadcaster) inout([(nt*(nt+1)/2)*ts*ts]A) in([2*nt*ts*ts]recv_buffer)
+//#endif
+#pragma oss task device(fpga) inout([(nt*(nt+1)/2)*ts*ts]A) in([2*nt*ts*ts]recv_buffer) owner("all")
+void cholesky_blocked(const int nt, type_t* A, type_t* recv_buffer)
 {
+
+    int r = OMPIF_Comm_rank();
+    int s = OMPIF_Comm_size();
+    //ap_uint<2> cfidx;
+    //Select special cases based on rank and cluster sizes
+    unsigned char cfidx;
+    uint ndiags = nt/s + (r < nt%s ? 1 : 0);
+    unsigned char remstart = r >= nt%s ? r-nt%s : r+s - nt%s;
+    if (s%2 == 0 && r%2 == 0)
+        cfidx = 0;
+    else if (s%2 == 0 && r%2 == 1)
+        cfidx = 1;
+    else if (s%2 == 1 && r%2 == 0)
+        cfidx = 2;
+    else
+        cfidx = 3;
+
+
+   main_loop:
    for (int k = 0; k < nt; k++) {
 
       // Diagonal Block factorization
-      omp_potrf( A + ((k*nt + k)*ts*ts) );
+      const unsigned char task_owner = calc_owner(k, k, s);
+      int A_idx;
+      //Looks like this condition could be removed
+      if (task_owner == r) {
+         A_idx = get_block_idx(k, k, nt, r, s, cfidx, ndiags, remstart);
+      }
+      omp_potrf( A + A_idx*ts*ts, task_owner );
 
       // Triangular systems
+      inner_loop:
       for (int i = k+1; i < nt; i++) {
-         omp_trsm( A + ((k*nt + k)*ts*ts),
-                   A + ((k*nt + i)*ts*ts) );
+
+         const unsigned char task_owner = calc_owner(i, k, s);
+         const unsigned char data_owner0 = calc_owner(k, k, s);
+         type_t *Ablock, *Bblock;
+
+         char is_recv_buffer_A = (task_owner == r && data_owner0 != r);
+         Ablock = is_recv_buffer_A ?
+             recv_buffer + ((k%recv_buffer_size)*nt)*ts*ts:
+             A + get_block_idx(k, k, nt, r, s, cfidx, ndiags, remstart)*ts*ts;
+
+         Bblock = A + get_block_idx(i, k, nt, r, s, cfidx, ndiags, remstart)*ts*ts;
+
+         //if (task_owner == r && data_owner0 != r)
+         //   Ablock = recv_buffer + ((k%recv_buffer_size)*nt)*ts*ts;
+         //else if (data_owner0 == r) {
+         //   Ablock = A + get_block_idx(k, k, nt, r, s, cfidx, ndiags, remstart)*ts*ts;
+         //}
+         //if (task_owner == r) {
+         //   Bblock = A + get_block_idx(i, k, nt, r, s, cfidx, ndiags, remstart)*ts*ts;
+         //}
+
+         omp_trsm( Ablock, Bblock, data_owner0, task_owner);
       }
 
       // Update trailing matrix
+      inner_loop2:
       for (int i = k + 1; i < nt; i++) {
+         gemm_loop:
          for (int j = k + 1; j < i; j++) {
-            omp_gemm( A + ((k*nt + i)*ts*ts),
-                      A + ((k*nt + j)*ts*ts),
-                      A + ((j*nt + i)*ts*ts) );
+            const unsigned char task_owner = calc_owner(i, j, s);
+            //Data owner for first argument
+            const unsigned char data_owner0 = calc_owner(i, k, s);
+            //Data owner of second argument
+            const unsigned char data_owner1 = calc_owner(j, k, s);
+            type_t *Ablock, *Bblock, *Cblock;
+            //Not owning data -> copy to scratchpad buffer
+
+            char is_recv_buffer_A = (task_owner == r && data_owner0 != r);
+            Ablock = is_recv_buffer_A ?
+               recv_buffer + ((k%recv_buffer_size)*nt + i)*ts*ts:
+               A + get_block_idx(i, k, nt, r, s, cfidx, ndiags, remstart)*ts*ts;
+            //if (task_owner == r && data_owner0 != r)
+            //   Ablock = recv_buffer + ((k%recv_buffer_size)*nt + i)*ts*ts;
+            ////Owning the data -> use working matrix
+            //else if (data_owner0 == r) {
+            //   int A_idx = get_block_idx(i, k, nt, r, s, cfidx, ndiags, remstart);
+            //   Ablock = A + A_idx*ts*ts;
+            //}
+            char is_recv_buffer_B = (task_owner == r && data_owner1 != r);
+            Bblock = is_recv_buffer_B ?
+               recv_buffer + ((k%recv_buffer_size)*nt + j)*ts*ts:
+               A + get_block_idx(j, k, nt, r, s, cfidx, ndiags, remstart)*ts*ts;
+
+
+            //if (task_owner == r && data_owner1 != r)
+            //   Bblock = recv_buffer + ((k%recv_buffer_size)*nt + j)*ts*ts;
+            //else if (data_owner1 == r) {
+            //   uint B_idx = get_block_idx(j, k, nt, r, s, cfidx, ndiags, remstart);
+            //   Bblock = A + B_idx*ts*ts;
+            //}
+            //Does not matter if not owning the task
+            //if (task_owner == r) {
+               uint C_idx = get_block_idx(i, j, nt, r, s, cfidx, ndiags, remstart);
+               Cblock = A + C_idx*ts*ts;
+            //}
+
+            omp_gemm( Ablock, Bblock, Cblock, data_owner0, data_owner1, task_owner);
          }
-         omp_syrk( A + ((k*nt + i)*ts*ts),
-                   A + ((i*nt + i)*ts*ts) );
+         const unsigned char task_owner = calc_owner(i, i, s);
+         const unsigned char data_owner0 = calc_owner(i, k, s);
+         type_t *Ablock, *Bblock;
+         char is_recv_buffer_A = (task_owner == r && data_owner0 != r);
+         //This needs to be done as a conditiona assignment to work around a compiler issue
+         Ablock = is_recv_buffer_A ?
+            recv_buffer + ((k%recv_buffer_size)*nt + i)*ts*ts:
+            A + get_block_idx(i, k, nt, r, s, cfidx, ndiags, remstart)*ts*ts;
+
+         //if (task_owner == r && data_owner0 != r)
+         //   Ablock = recv_buffer + ((k%recv_buffer_size)*nt + i)*ts*ts;
+         //else if (data_owner0 == r) {
+         //   int A_idx = get_block_idx(i, k, nt, r, s, cfidx, ndiags, remstart);
+         //   Ablock = A + A_idx*ts*ts;
+         //}
+         //This will be always executed y the task owner
+         //if (task_owner == r) {
+            int B_idx = get_block_idx(i, i, nt, r, s, cfidx, ndiags, remstart);
+            Bblock = A + B_idx*ts*ts;
+         //}
+         omp_syrk( Ablock, Bblock, data_owner0, task_owner );
       }
    }
    #pragma oss taskwait
+}
+
+
+static void triangular_to_linear(type_t* triangular, type_t* linear, int n, int nt)
+{
+   int diag_offset = 0;
+   for (int d = 0; d < 2*nt-1; ++d) {
+      int blocks = d/2 + 1 - (d >= nt ? d-nt + 1 : 0);
+      int i = d >= nt ? nt-1 : d;
+      int j = d >= nt ? d-nt+1 : 0;
+      type_t* block_array;
+      block_array = triangular + diag_offset*ts*ts;
+      diag_offset += blocks;
+      for (int b = 0; b < blocks; ++b) {
+         const type_t* triangular_b = block_array + b*ts*ts;
+         scatter_block(n, triangular_b, linear + j*ts*n + i*ts); //linear matrix is column major
+         if (i != j) scatter_transposed_block(n, triangular_b, linear + i*ts*n + j*ts);
+         --i, ++j;
+      }
+   }
+}
+
+void initialize_matrix_blocked_lower(const int n, type_t *matrix)
+{
+   // This code was designed for an MPI application, every rank would allocate and initialize its own
+   // part of the matrix. In this version, the CPU allocates and initializes the whole matrix.
+   // If the CPU doesn't have enough memory for the full matrix, a simple solution is to allocate just the space
+   // for the FPGA with more blocks, and initialize the part corresponding to each FPGA by changing this
+   // rank and size parameters.
+   int rank = 0;
+   int size = 1;
+
+   //ISEED is INTEGER array, dimension (4)
+   //On entry, the seed of the random number generator; the array
+   //elements must be between 0 and 4095, and ISEED(4) must be odd.
+   //On exit, the seed is updated.
+   //int ISEED[4] = {0,0,0,1};
+   const int intONE=1;
+
+   const int nt = n/ts;
+
+   const int tb = get_total_blocks(nt, rank, size);
+
+   const long long msize = tb*ts*ts;
+   int cpus = nanos6_get_num_cpus();
+   const long long bsize = msize/cpus < 1024 ? 1024 : (msize/cpus > 2147483648ull ? 2147483648ull : msize/cpus);
+
+   for (long long i = 0; i < msize; i += bsize) {
+      #pragma oss task firstprivate(i)
+      {
+         int ISEED[4] = {0, i >> 32, i & 0xFFFFFFFF, 1};
+         int final_size = msize-i > bsize ? bsize : msize-i; 
+         larnv(&intONE, &ISEED[0], &final_size, matrix + i);
+      }
+   }
+   #pragma oss taskwait
+
+   type_t a = (type_t)n;
+   int diag_offset = 0;
+   for (int d = rank; d < 2*nt-1; d += size) {
+      int blocks = d/2 + 1 - (d >= nt ? d-nt + 1 : 0);
+      for (int b = 0; b < blocks; b++) {
+         //#pragma oss task firstprivate(diag_offset, b, blocks, d)
+         {
+         type_t* bmat = matrix + (diag_offset + b)*ts*ts;
+         for (int j = 0; j < ts; ++j) {
+            for (int i = (d%2 == 0 && b == blocks-1 ? j : 0); i < ts; ++i) {
+               bmat[j*ts + i] *= 2;
+               if (d%2 == 0 && b == blocks-1) {//diagonal block
+                  if (i == j)
+                     bmat[j*ts + i] += a;
+                  else
+                     bmat[i*ts + j] = bmat[j*ts + i];
+               }
+            }
+         }
+         }
+      }
+      diag_offset += blocks;
+   }
 }
 
 // Robust Check the factorization of the matrix A2
@@ -332,30 +558,6 @@ static int check_factorization(int N, type_t *A1, type_t *A2, int LDA, char uplo
    return info_factorization;
 }
 
-void initialize_matrix(const int n, type_t *matrix)
-{
-   int ISEED[4] = {0,0,0,1};
-   int intONE=1;
-
-#ifdef VERBOSE
-   printf("Initializing matrix with random values ...\n");
-#endif
-
-   for (int i = 0; i < n*n; i+=n) {
-      larnv(&intONE, &ISEED[0], &n, &matrix[i]);
-   }
-
-   type_t a = (type_t)n;
-   for (int i=0; i<n; i++) {
-      for (int j=0; j<n; j++) {
-         matrix[j*n + i] = matrix[j*n + i] + matrix[i*n + j];
-         matrix[i*n + j] = matrix[j*n + i];
-      }
-      //add_to_diag
-      matrix[i*n + i] += a;
-   }
-}
-
 int main(int argc, char* argv[])
 {
    char *result[3] = {"n/a","sucessful","UNSUCCESSFUL"};
@@ -375,36 +577,80 @@ int main(int argc, char* argv[])
       fprintf( stderr, "ERROR:\t<matrix size> is not multiple of <block size>\n" );
       exit( -1 );
    }
+   int nranks = nanos6_dist_num_devices();
+   if (nranks <= 0) {
+      fprintf(stderr, "No devices found");
+   }
 
    // Allocate matrix
-   type_t * const matrix = (type_t *) malloc(n * n * sizeof(type_t));
-   assert(matrix != NULL);
+   type_t * matrix;
+   // Allocate blocked matrix
+   type_t *Ab;
+   type_t *recv_buffer;
+   const size_t s = ts * ts * sizeof(type_t);
+   //const size_t tb = get_total_blocks(nt, 0, 1);
+   const size_t tb = nt*(nt+1)/2;
+   Ab = malloc(tb*s);
+   recv_buffer = malloc(2*nt*s);
+   if (Ab == NULL || recv_buffer == NULL) {
+      fprintf(stderr, "Could not allocate matrix\n");
+      return 1;
+   }
 
    double tIniStart = wall_time();
 
    // Init matrix
-   initialize_matrix(n, matrix);
+   initialize_matrix_blocked_lower(n, Ab);
 
    type_t * original_matrix = NULL;
    if ( check == 1 ) {
-      // Allocate matrix
+      // Allocate matrix to check
       original_matrix = (type_t *) malloc(n * n * sizeof(type_t));
-      assert(original_matrix != NULL);
-      memcpy(original_matrix, matrix, n * n * sizeof(type_t));
-   }
-
-   // Allocate blocked matrix
-   type_t *Ah[nt][nt];
-   type_t *Ab;
-   const size_t s = ts * ts * sizeof(type_t);
-   Ab = malloc(s*nt*nt);
-   assert(Ab != NULL);
-
-   for (int i = 0; i < nt; i++) {
-      for (int j = 0; j < nt; j++) {
-         Ah[i][j] = Ab + (i*nt + j)*ts*ts;
+      if (original_matrix == NULL) {
+         fprintf(stderr, "Could not allocate original matrix\n");
+         return 1;
       }
+      triangular_to_linear(Ab, original_matrix, n, nt);
+      //print_matrix(original_matrix, n);
    }
+
+   //compute max needed memory in the fpga
+   unsigned int max_tb = get_total_blocks(nt, 0, nranks);
+   for (int i = 1; i < nranks; ++i) {
+	  unsigned int blocks = get_total_blocks(nt, i, nranks);
+	  if (blocks > max_tb)
+		 max_tb = blocks;
+   }
+
+//   //map buffers to remote nodes
+   nanos6_dist_map_address(Ab, max_tb*s);
+   nanos6_dist_map_address(recv_buffer, 2*nt*s);
+   //copy data to the devices
+   //I think nt copy descriptors should be enough
+   nanos6_dist_memcpy_info_t *memcpy_infos =
+      (nanos6_dist_memcpy_info_t*)malloc((2*nt-1)*sizeof(nanos6_dist_memcpy_info_t));
+
+   const double tBeginCopy = wall_time();
+
+   unsigned int diag_offset = 0;
+   unsigned int *r_diag_offset = (unsigned int*)malloc(nranks*sizeof(unsigned int));
+   memset(r_diag_offset, 0, nranks*sizeof(unsigned int));
+   for (int d = 0; d < 2*nt-1; ++d) {
+      int blocks = d/2 + 1 - (d >= nt ? d-nt + 1 : 0);
+      int r = d%nranks;
+      memcpy_infos[d].size = blocks*s;
+      memcpy_infos[d].sendOffset = diag_offset*s;
+      memcpy_infos[d].recvOffset = r_diag_offset[r]*s;
+      memcpy_infos[d].devId = r;
+      r_diag_offset[r] += blocks;
+      diag_offset += blocks;
+   }
+   nanos6_dist_memcpy_vector(Ab, 2*nt-1, memcpy_infos, NANOS6_DIST_COPY_TO);
+   const double tEndCopy = wall_time();
+   const double tElapsedCopy = tEndCopy-tBeginCopy;
+   free(r_diag_offset);
+   free(memcpy_infos);
+
 
    const double tEndStart = wall_time();
 
@@ -412,47 +658,64 @@ int main(int argc, char* argv[])
    printf ("Executing ...\n");
 #endif
 
-   convert_to_blocks(nt, n, (type_t(*)[n]) matrix, Ah);
+   //we already have a matrix of blocks copy stuff to remote nodes
 
    const double tIniWarm = wall_time();
 
-   //Warm up execution
-   if (check == 2) {
-       cholesky_blocked(nt, Ab);
-       nanos6_set_noflush(Ab, nt*nt*ts*ts*sizeof(*Ab));
-       //#pragma oss taskwait noflush([nt*nt*ts*ts]Ab)
-       #pragma oss taskwait
-   }
+   //Warmup removed for distributed versions
+   //TODO: remove warmup printing
 
    const double tEndWarm = wall_time();
    const double tIniExec = tEndWarm;
 
    //Performance execution
-   cholesky_blocked(nt, Ab);
+   cholesky_blocked(nt, Ab, recv_buffer);
 
    //Noflush is not currently supported, use nanos api calls instead
    //#pragma oss taskwait noflush([nt*nt*ts*ts]Ab)
-   nanos6_set_noflush(Ab, nt*nt*ts*ts*sizeof(*Ab));
+   //Noflush is not needed as distributed copies are done manually
+   //nanos6_set_noflush(Ab, (nt*(nt+1)/2)*ts*ts*sizeof(*Ab));
    #pragma oss taskwait
    const double tEndExec = wall_time();
    const double tIniFlush = tEndExec;
 
-   flushData(Ab, nt*nt*ts*ts);
+   //flushData(Ab, (nt*(nt+1)/2)*ts*ts);
 
    #pragma oss taskwait
 
    const double tEndFlush = wall_time();
    const double tIniToLinear = tEndFlush;
 
-   convert_to_linear(nt, n, Ah, (type_t (*)[n]) matrix);
 
    const double tEndToLinear = wall_time();
-   const double tIniCheck = tEndToLinear;
+   double tIniCheck;
 
    if ( check == 1 ) {
+      //tIniToLinear = wall_time();
+      unsigned int diag_offset = 0;
+      unsigned int *r_diag_offset = (unsigned int*)malloc(nranks*sizeof(unsigned int));
+      memset(r_diag_offset, 0, nranks*sizeof(unsigned int));
+      for (unsigned int d = 0; d < 2*nt-1; ++d) {
+         unsigned int blocks = d/2 + 1 - (d >= nt ? d-nt + 1 : 0);
+         unsigned int r = d%nranks;
+         nanos6_dist_memcpy_from_device(r, Ab, blocks*s, r_diag_offset[r]*s, diag_offset*s);
+         r_diag_offset[r] += blocks;
+         diag_offset += blocks;
+      }
+      free(r_diag_offset);
+      matrix = (type_t*)malloc(n*n*sizeof(type_t));
+      if (matrix == NULL) {
+          fprintf(stderr, "Could not allocate auxiliar matrix\n");
+          return 1;
+      }
+      triangular_to_linear(Ab, matrix, n, nt);
+      //tEndToLinear = wall_time();
+      tIniCheck = tEndToLinear;
       const char uplo = 'L';
       if ( check_factorization(n, original_matrix, matrix, n, uplo) ) check = 10;
       free(original_matrix);
+      free(matrix);
+      //tEndCheck = wall_time();
    }
 
    const double tEndCheck = wall_time();
@@ -478,9 +741,6 @@ int main(int argc, char* argv[])
 
    // Free blocked matrix
    free(Ab);
-
-   // Free matrix
-   free(matrix);
 
    return check == 10 ? 1 : 0;
 }
